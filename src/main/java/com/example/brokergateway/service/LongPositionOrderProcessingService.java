@@ -1,0 +1,89 @@
+package com.example.brokergateway.service;
+
+import com.binance.api.client.BinanceApiClientFactory;
+import com.binance.api.client.BinanceApiRestClient;
+import com.binance.api.client.domain.OrderSide;
+import com.binance.api.client.domain.account.request.OrderRequest;
+import com.example.brokergateway.dto.*;
+import com.example.brokergateway.mapper.OrderMapper;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Service;
+
+import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.util.Map;
+import java.util.function.Consumer;
+
+import static com.example.brokergateway.dto.RequestOrderType.*;
+
+@Service
+@Slf4j
+public class LongPositionOrderProcessingService {
+    private final BinanceApiRestClient client;
+    private final OrderMapper mapper;
+    private final Map<RequestOrderType, Consumer<BaseOrderRequest>> handlers = Map.of(
+            STOP_LIMIT, request -> processStopLimitOrderRequest((StopLimitOrderRequest) request),
+            LIMIT, request -> processLimitOrderRequest((LimitOrderRequest) request),
+            OCO, request -> processOcoOrderRequest((OcoOrderRequest) request),
+            CANCEL, request -> processCancelOrderRequest((CancelOrderRequest) request)
+    );
+
+    public LongPositionOrderProcessingService(@Value(value = "${binance.api.key}") String apiKey,
+                                              @Value(value = "${binance.secret.key}") String secretKey,
+                                              OrderMapper mapper) {
+        this.client = BinanceApiClientFactory.newInstance(apiKey, secretKey).newRestClient();
+        this.mapper = mapper;
+    }
+
+    public void processOrderRequest(BaseOrderRequest request) {
+        handlers.get(request.getType()).accept(request);
+    }
+
+    private void processStopLimitOrderRequest(StopLimitOrderRequest orderRequest) {
+        client.newOrder(mapper.toStopLimitOrder(orderRequest));
+    }
+
+    private void processLimitOrderRequest(LimitOrderRequest orderRequest) {
+        if (orderRequest.getSide() == OrderSide.SELL && orderRequest.getQuantity() == null) {
+            orderRequest.setQuantity(getQuantity(orderRequest).toPlainString());
+        }
+        client.newOrder(mapper.toNewOrder(orderRequest));
+    }
+
+    private void processOcoOrderRequest(OcoOrderRequest orderRequest) {
+        if (orderRequest.getQuantity() == null) {
+            orderRequest.setQuantity(getQuantity(orderRequest).toPlainString());
+        }
+        client.newOCO(mapper.toOcoOrder(orderRequest));
+    }
+
+    private void processCancelOrderRequest(CancelOrderRequest orderRequest) {
+        client.getOpenOrders(new OrderRequest(orderRequest.getSymbol().replace("/", ""))).stream()
+                .filter(order -> {
+                    if (orderRequest.getSide() != null) {
+                        return order.getSide() == orderRequest.getSide();
+                    }
+                    return true;
+                })
+                .forEach(order -> client.cancelOrder(mapper.toCancelOrder(order)));
+    }
+
+    private <T extends BaseOrderRequest> BigDecimal getQuantity(T orderRequest) {
+        BigDecimal free = getFree(orderRequest.getSymbol());
+
+        if (orderRequest.getQuantityPercentage() != null) {
+            return free.multiply(BigDecimal.valueOf(orderRequest.getQuantityPercentage())).divide(BigDecimal.valueOf(100), RoundingMode.HALF_UP).setScale(5, RoundingMode.HALF_UP);
+        }
+
+        return free;
+    }
+
+    private BigDecimal getFree(String symbol) {
+        return new BigDecimal(client.getAccount().getAssetBalance(getFirstSymbol(symbol)).getFree()).setScale(5, RoundingMode.FLOOR);
+    }
+
+    private String getFirstSymbol(String tradingSymbolPair) {
+        return tradingSymbolPair.substring(0, tradingSymbolPair.indexOf("/"));
+    }
+}
