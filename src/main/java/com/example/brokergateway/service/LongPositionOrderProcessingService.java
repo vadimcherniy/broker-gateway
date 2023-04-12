@@ -41,6 +41,7 @@ public class LongPositionOrderProcessingService {
     }
 
     private void processStopLimitOrderRequest(StopLimitOrderRequest orderRequest) {
+        log.info("Calling Binance api rest client: newOrder");
         client.newOrder(mapper.toStopLimitOrder(orderRequest));
     }
 
@@ -48,6 +49,7 @@ public class LongPositionOrderProcessingService {
         if (orderRequest.getSide() == OrderSide.SELL && orderRequest.getQuantity() == null) {
             orderRequest.setQuantity(getQuantity(orderRequest).toPlainString());
         }
+        log.info("Calling Binance api rest client: newOrder");
         client.newOrder(mapper.toNewOrder(orderRequest));
     }
 
@@ -55,10 +57,12 @@ public class LongPositionOrderProcessingService {
         if (orderRequest.getQuantity() == null) {
             orderRequest.setQuantity(getQuantity(orderRequest).toPlainString());
         }
+        log.info("Calling Binance api rest client: newOCO");
         client.newOCO(mapper.toOcoOrder(orderRequest));
     }
 
     private void processCancelOrderRequest(CancelOrderRequest orderRequest) {
+        log.info("Calling Binance api rest client: getOpenOrders");
         client.getOpenOrders(new OrderRequest(orderRequest.getSymbol().replace("/", ""))).stream()
                 .filter(order -> {
                     if (orderRequest.getSide() != null) {
@@ -66,7 +70,10 @@ public class LongPositionOrderProcessingService {
                     }
                     return true;
                 })
-                .forEach(order -> client.cancelOrder(mapper.toCancelOrder(order)));
+                .forEach(order -> {
+                    log.info("Calling Binance api rest client: cancelOrder");
+                    client.cancelOrder(mapper.toCancelOrder(order));
+                });
     }
 
     private <T extends BaseOrderRequest> BigDecimal getQuantity(T orderRequest) {
@@ -80,6 +87,7 @@ public class LongPositionOrderProcessingService {
     }
 
     private BigDecimal getFree(String symbol) {
+        log.info("Calling Binance api rest client: getAccount");
         return new BigDecimal(client.getAccount().getAssetBalance(getFirstSymbol(symbol)).getFree()).setScale(5, RoundingMode.FLOOR);
     }
 
