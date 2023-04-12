@@ -13,7 +13,10 @@ public class SecurityConfiguration {
             "hasIpAddress('34.212.75.30') or " +
             "hasIpAddress('34.212.75.30') or " +
             "hasIpAddress('54.218.53.128') or " +
-            "hasIpAddress('52.32.178.7')";
+            "hasIpAddress('52.32.178.7') or " +
+            "hasIpAddress('217.20.187.201') or " +
+            "hasIpAddress('178.136.75.110')";
+
 
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
