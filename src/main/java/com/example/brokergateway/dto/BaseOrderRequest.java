@@ -10,6 +10,8 @@ import javax.validation.constraints.Max;
 import javax.validation.constraints.Min;
 import javax.validation.constraints.NotBlank;
 import javax.validation.constraints.NotNull;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 
 @Getter
 @Setter
@@ -26,14 +28,15 @@ public class BaseOrderRequest {
     private RequestOrderType type;
     @NotBlank
     private String symbol;
-    private String quantity;
+    private BigDecimal quantity;
     @Min(1)
     @Max(100)
     private Integer quantityPercentage;
     private String price;
+    @Min(1)
     private Integer delay;
 
     public String getQuantity() {
-        return quantity != null ? String.format("%.5f", Double.valueOf(quantity)) : "0.0";
+        return quantity != null ? quantity.setScale(5, RoundingMode.FLOOR).toPlainString() : null;
     }
 }

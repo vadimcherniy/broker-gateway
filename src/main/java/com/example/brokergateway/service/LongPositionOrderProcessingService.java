@@ -13,6 +13,7 @@ import org.springframework.stereotype.Service;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
 import static com.example.brokergateway.dto.RequestOrderType.*;
@@ -36,32 +37,34 @@ public class LongPositionOrderProcessingService {
         this.mapper = mapper;
     }
 
-    public void processOrderRequest(BaseOrderRequest request) {
-        handlers.get(request.getType()).accept(request);
+    public void processOrderRequest(BaseOrderRequest orderRequest) {
+        wait(orderRequest.getDelay());
+        handlers.get(orderRequest.getType()).accept(orderRequest);
     }
 
     private void processStopLimitOrderRequest(StopLimitOrderRequest orderRequest) {
-        log.info("Calling Binance api rest client: newOrder");
+        log.info("Calling Binance api rest client newOrder: process StopLimitOrder request");
         client.newOrder(mapper.toStopLimitOrder(orderRequest));
     }
 
     private void processLimitOrderRequest(LimitOrderRequest orderRequest) {
         if (orderRequest.getSide() == OrderSide.SELL && orderRequest.getQuantity() == null) {
-            orderRequest.setQuantity(getQuantity(orderRequest).toPlainString());
+            orderRequest.setQuantity(getQuantity(orderRequest));
         }
-        log.info("Calling Binance api rest client: newOrder");
+        log.info("Calling Binance api rest client newOrder: process LimitOrder request");
         client.newOrder(mapper.toNewOrder(orderRequest));
     }
 
     private void processOcoOrderRequest(OcoOrderRequest orderRequest) {
         if (orderRequest.getQuantity() == null) {
-            orderRequest.setQuantity(getQuantity(orderRequest).toPlainString());
+            orderRequest.setQuantity(getQuantity(orderRequest));
         }
-        log.info("Calling Binance api rest client: newOCO");
+        log.info("Calling Binance api rest client newOCO: process OcoOrder request");
         client.newOCO(mapper.toOcoOrder(orderRequest));
     }
 
     private void processCancelOrderRequest(CancelOrderRequest orderRequest) {
+        log.info("Process cancel order request");
         log.info("Calling Binance api rest client: getOpenOrders");
         client.getOpenOrders(new OrderRequest(orderRequest.getSymbol().replace("/", ""))).stream()
                 .filter(order -> {
@@ -93,5 +96,15 @@ public class LongPositionOrderProcessingService {
 
     private String getFirstSymbol(String tradingSymbolPair) {
         return tradingSymbolPair.substring(0, tradingSymbolPair.indexOf("/"));
+    }
+
+    private void wait(Integer seconds) {
+        if (seconds != null) {
+            try {
+                TimeUnit.SECONDS.sleep(seconds);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        }
     }
 }
