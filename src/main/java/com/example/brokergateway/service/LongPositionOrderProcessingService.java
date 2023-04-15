@@ -2,7 +2,8 @@ package com.example.brokergateway.service;
 
 import com.binance.api.client.BinanceApiClientFactory;
 import com.binance.api.client.BinanceApiRestClient;
-import com.binance.api.client.domain.OrderSide;
+import com.binance.api.client.domain.account.NewOCO;
+import com.binance.api.client.domain.account.NewOrder;
 import com.binance.api.client.domain.account.request.OrderRequest;
 import com.example.brokergateway.dto.*;
 import com.example.brokergateway.mapper.OrderMapper;
@@ -20,7 +21,7 @@ import static com.example.brokergateway.dto.RequestOrderType.*;
 
 @Service
 @Slf4j
-public class LongPositionOrderProcessingService {
+public class LongPositionOrderProcessingService implements OrderProcessingService {
     private final BinanceApiRestClient client;
     private final OrderMapper mapper;
     private final Map<RequestOrderType, Consumer<BaseOrderRequest>> handlers = Map.of(
@@ -37,45 +38,44 @@ public class LongPositionOrderProcessingService {
         this.mapper = mapper;
     }
 
+    @Override
     public void processOrderRequest(BaseOrderRequest orderRequest) {
         wait(orderRequest.getDelay());
         handlers.get(orderRequest.getType()).accept(orderRequest);
     }
 
     private void processStopLimitOrderRequest(StopLimitOrderRequest orderRequest) {
-        log.info("Calling Binance api rest client newOrder: process StopLimitOrder request");
-        client.newOrder(mapper.toStopLimitOrder(orderRequest));
+        NewOrder stopLimitOrder = mapper.toStopLimitOrder(orderRequest);
+        log.info("Long: calling Binance api client 'newOrder', process StopLimitOrderRequest, payload: " + stopLimitOrder.toString());
+        client.newOrder(stopLimitOrder);
     }
 
     private void processLimitOrderRequest(LimitOrderRequest orderRequest) {
-        if (orderRequest.getSide() == OrderSide.SELL && orderRequest.getQuantity() == null) {
+        if (orderRequest.getQuantity() == null) {
             orderRequest.setQuantity(getQuantity(orderRequest));
         }
-        log.info("Calling Binance api rest client newOrder: process LimitOrder request");
-        client.newOrder(mapper.toNewOrder(orderRequest));
+        NewOrder limitOrder = mapper.toLimitOrder(orderRequest);
+        log.info("Long: calling Binance api client 'newOrder', process LimitOrderRequest, payload: " + limitOrder.toString());
+        client.newOrder(limitOrder);
     }
 
     private void processOcoOrderRequest(OcoOrderRequest orderRequest) {
         if (orderRequest.getQuantity() == null) {
             orderRequest.setQuantity(getQuantity(orderRequest));
         }
-        log.info("Calling Binance api rest client newOCO: process OcoOrder request");
-        client.newOCO(mapper.toOcoOrder(orderRequest));
+        NewOCO newOCO = mapper.toOcoOrder(orderRequest);
+        log.info("Long: calling Binance api client 'newOCO', processing OcoOrderRequest, payload: " + newOCO.toString());
+        client.newOCO(newOCO);
     }
 
     private void processCancelOrderRequest(CancelOrderRequest orderRequest) {
-        log.info("Process cancel order request");
-        log.info("Calling Binance api rest client: getOpenOrders");
-        client.getOpenOrders(new OrderRequest(orderRequest.getSymbol().replace("/", ""))).stream()
-                .filter(order -> {
-                    if (orderRequest.getSide() != null) {
-                        return order.getSide() == orderRequest.getSide();
-                    }
-                    return true;
-                })
+        log.info("Long: processing cancel order request");
+        log.info("Long: calling Binance api client 'getOpenOrders' for symbol: " + orderRequest.getSymbol());
+        client.getOpenOrders(new OrderRequest(orderRequest.getSymbol().replace("/", "")))
                 .forEach(order -> {
-                    log.info("Calling Binance api rest client: cancelOrder");
-                    client.cancelOrder(mapper.toCancelOrder(order));
+                    com.binance.api.client.domain.account.request.CancelOrderRequest cancelOrder = mapper.toCancelOrder(order);
+                    log.info("Long: calling Binance api client 'cancelOrder', payload: " + cancelOrder.toString());
+                    client.cancelOrder(cancelOrder);
                 });
     }
 
@@ -90,21 +90,11 @@ public class LongPositionOrderProcessingService {
     }
 
     private BigDecimal getFree(String symbol) {
-        log.info("Calling Binance api rest client: getAccount");
+        log.info("Long: calling Binance api client getAssetBalance for symbol " + symbol);
         return new BigDecimal(client.getAccount().getAssetBalance(getFirstSymbol(symbol)).getFree()).setScale(5, RoundingMode.FLOOR);
     }
 
     private String getFirstSymbol(String tradingSymbolPair) {
         return tradingSymbolPair.substring(0, tradingSymbolPair.indexOf("/"));
-    }
-
-    private void wait(Integer seconds) {
-        if (seconds != null) {
-            try {
-                TimeUnit.SECONDS.sleep(seconds);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-            }
-        }
     }
 }
