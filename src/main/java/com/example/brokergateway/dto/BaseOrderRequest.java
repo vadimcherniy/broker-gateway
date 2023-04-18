@@ -1,5 +1,7 @@
 package com.example.brokergateway.dto;
 
+import com.example.brokergateway.enums.Symbol;
+import com.example.brokergateway.utils.Formatter;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import lombok.Getter;
@@ -11,7 +13,6 @@ import javax.validation.constraints.Min;
 import javax.validation.constraints.NotBlank;
 import javax.validation.constraints.NotNull;
 import java.math.BigDecimal;
-import java.math.RoundingMode;
 
 @Getter
 @Setter
@@ -39,10 +40,10 @@ public class BaseOrderRequest {
     private Integer delay;
 
     public String getPrice() {
-        return price != null ? price.setScale(2, RoundingMode.HALF_UP).toPlainString() : null;
+        return Formatter.getPrice(Symbol.getBySymbol(symbol), price);
     }
 
     public String getQuantity() {
-        return quantity != null ? quantity.setScale(5, RoundingMode.FLOOR).toPlainString() : null;
+        return Formatter.getQuantity(Symbol.getBySymbol(symbol), quantity);
     }
 }
