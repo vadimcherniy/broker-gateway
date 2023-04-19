@@ -1,5 +1,7 @@
 package com.example.brokergateway.dto;
 
+import com.example.brokergateway.enums.Symbol;
+import com.example.brokergateway.utils.Formatter;
 import lombok.Setter;
 
 import javax.validation.constraints.NotBlank;
@@ -12,6 +14,6 @@ public class StopLimitOrderRequest extends BaseOrderRequest {
     private BigDecimal triggeredPrice;
 
     public String getTriggeredPrice() {
-        return triggeredPrice != null ? triggeredPrice.setScale(2, RoundingMode.HALF_UP).toPlainString() : null;
+        return Formatter.getPrice(Symbol.getBySymbol(getSymbol()), triggeredPrice);
     }
 }
