@@ -58,6 +58,11 @@
             <version>1.5.3.Final</version>
             <scope>provided</scope>
         </dependency>
+        <dependency>
+            <groupId>com.interactivebrokers</groupId>
+            <artifactId>tws-api</artifactId>
+            <version>9.73.01-SNAPSHOT</version>
+        </dependency>
     </dependencies>
     <dependencyManagement>
         <dependencies>
